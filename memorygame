@@ -1,0 +1,149 @@
+import pygame
+import random
+
+pygame.init()
+pygame.mixer.init()
+
+# Tela
+LARGURA, ALTURA = 800, 600
+tela = pygame.display.set_mode((LARGURA, ALTURA))
+pygame.display.set_caption("Jogo da Memória")
+
+# Cores
+BRANCO = (255, 255, 255)
+PRETO = (0, 0, 0)
+CINZA = (100, 100, 100)
+VERDE = (0, 200, 0)
+VERDE_ESCURO = (0, 100, 0)
+
+# Sons
+som_click = pygame.mixer.Sound("click.wav")
+som_acerto = pygame.mixer.Sound("match.wav")
+som_vitoria = pygame.mixer.Sound("win.wav")
+
+# Fonte
+fonte = pygame.font.SysFont(None, 48)
+fonte_info = pygame.font.SysFont(None, 36)
+
+# Cartas
+linhas, colunas = 4, 4
+tamanho_carta = 100
+espaco = 10
+cartas = []
+
+# Imagens base
+imagens_base = [
+    pygame.image.load("img1.png"),
+    pygame.image.load("img2.png"),
+    pygame.image.load("img3.png"),
+    pygame.image.load("img4.png"),
+    pygame.image.load("img5.png"),
+    pygame.image.load("img6.png"),
+    pygame.image.load("img7.png"),
+    pygame.image.load("img8.png")
+]
+
+# Duplicar e embaralhar
+imagens = imagens_base * 2  # 8 pares = 16 imagens
+random.shuffle(imagens)
+
+# Criar cartas
+for i in range(linhas):
+    for j in range(colunas):
+        x = j * (tamanho_carta + espaco) + 100
+        y = i * (tamanho_carta + espaco) + 50
+        cartas.append({
+            "rect": pygame.Rect(x, y, tamanho_carta, tamanho_carta),
+            "imagem": imagens.pop(),
+            "virada": False,
+            "descoberta": False
+        })
+
+# Variáveis de jogo
+rodando = True
+selecionadas = []
+tentativas = 0
+tempo_inicio = pygame.time.get_ticks()
+
+# Loop principal
+while rodando:
+    tela.fill(BRANCO)
+    tempo_atual = pygame.time.get_ticks()
+    segundos = (tempo_atual - tempo_inicio) // 1000
+
+    for evento in pygame.event.get():
+        if evento.type == pygame.QUIT:
+            rodando = False
+        elif evento.type == pygame.MOUSEBUTTONDOWN:
+            for carta in cartas:
+                if carta["rect"].collidepoint(evento.pos) and not carta["descoberta"] and not carta["virada"]:
+                    carta["virada"] = True
+                    selecionadas.append(carta)
+                    som_click.play()
+
+    # Verificar pares
+    if len(selecionadas) == 2:
+        tentativas += 1
+        pygame.display.update()
+        pygame.time.delay(1000)
+        if selecionadas[0]["imagem"] == selecionadas[1]["imagem"]:
+            selecionadas[0]["descoberta"] = True
+            selecionadas[1]["descoberta"] = True
+            som_acerto.play()
+        else:
+            selecionadas[0]["virada"] = False
+            selecionadas[1]["virada"] = False
+        selecionadas = []
+
+    # Desenhar cartas
+    for carta in cartas:
+        if carta["virada"] or carta["descoberta"]:
+            img = pygame.transform.scale(carta["imagem"], (tamanho_carta, tamanho_carta))
+            tela.blit(img, carta["rect"])
+        else:
+            pygame.draw.rect(tela, CINZA, carta["rect"])
+
+    # Informações
+    texto_tentativas = fonte_info.render(f"Tentativas: {tentativas}", True, PRETO)
+    texto_tempo = fonte_info.render(f"Tempo: {segundos}s", True, PRETO)
+    tela.blit(texto_tentativas, (10, 10))
+    tela.blit(texto_tempo, (10, 40))
+
+    # Verificar vitória
+    if all(carta["descoberta"] for carta in cartas):
+        som_vitoria.play()
+        tela.fill(VERDE)
+        texto_vitoria = fonte.render("Você venceu!", True, BRANCO)
+        tela.blit(texto_vitoria, (250, 200))
+
+        pontuacao = max(1000 - (tentativas * 10 + segundos * 5), 0)
+        texto_pontos = fonte.render(f"Pontuação: {pontuacao}", True, BRANCO)
+        tela.blit(texto_pontos, (250, 270))
+
+        botao = pygame.Rect(300, 350, 200, 50)
+        pygame.draw.rect(tela, VERDE_ESCURO, botao)
+        texto_botao = fonte_info.render("Reiniciar", True, BRANCO)
+        tela.blit(texto_botao, (botao.x + 40, botao.y + 10))
+        pygame.display.update()
+
+        esperando = True
+        while esperando:
+            for evento in pygame.event.get():
+                if evento.type == pygame.QUIT:
+                    esperando = False
+                    rodando = False
+                elif evento.type == pygame.MOUSEBUTTONDOWN:
+                    if botao.collidepoint(evento.pos):
+                        imagens = imagens_base * 2
+                        random.shuffle(imagens)
+                        for i, carta in enumerate(cartas):
+                            carta["imagem"] = imagens[i]
+                            carta["virada"] = False
+                            carta["descoberta"] = False
+                        tentativas = 0
+                        tempo_inicio = pygame.time.get_ticks()
+                        esperando = False
+
+    pygame.display.update()
+
+pygame.quit()
